@@ -1,0 +1,200 @@
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.geom.Line2D;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.util.ArrayList;
+import java.util.Scanner;
+
+import javax.swing.JFrame;
+import javax.swing.JPanel;
+
+import org.jfree.chart.ChartPanel;
+import org.jfree.chart.JFreeChart;
+import org.jfree.chart.axis.NumberAxis;
+import org.jfree.chart.plot.DatasetRenderingOrder;
+import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.renderer.xy.XYErrorRenderer;
+import org.jfree.chart.renderer.xy.XYItemRenderer;
+import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
+import org.jfree.data.function.Function2D;
+import org.jfree.data.general.DatasetUtilities;
+import org.jfree.data.xy.IntervalXYDataset;
+import org.jfree.data.xy.XYDataset;
+import org.jfree.data.xy.XYIntervalSeries;
+import org.jfree.data.xy.XYIntervalSeriesCollection;
+
+import org.jMath.MatrixAlgebra.*;
+
+
+public class project8 {
+	static double[] time = new double[24];
+	static double[][] data = new double[24][12];
+	static double[] stdev = new double[24];
+	static double[] variance = new double[24];
+	static double[] mean = new double[24];
+	static double[][] alpha = new double[3][3];
+	static double[] beta = new double[3];
+	static double[] a = new double[3];
+
+	public static void main(String[] args) throws FileNotFoundException, IllegalDimension {
+		readText("constaccel.dat");
+		calculateMean();
+		calculateStDev();
+		createAlphaMatrix();
+		createBetaMatrix();
+		alpha = inverse(alpha);
+		a = multiply(beta, alpha);
+
+		
+		XYIntervalSeriesCollection dataset = new XYIntervalSeriesCollection();
+		ArrayList<XYIntervalSeries> series = new ArrayList<XYIntervalSeries>();
+		series.add(createSeries(mean, time, stdev,"Data"));
+		dataset.addSeries(series.get(0));
+		XYDataset fit = createFunctionDataset();
+		createWindow(createXYChart(dataset,fit, "Time", "Position", "Project #8: Fitting"), "Project #8");
+		System.out.println("a1:[" + a[0] + "] a2:[" + a[1] + "] a3:[" + a[2] + "]");
+	}
+
+	public static void readText(String filename) throws FileNotFoundException {
+		Scanner scanner = new Scanner(new File(filename));
+		for (int j = 0; scanner.hasNext(); j++) {
+			time[j] = scanner.nextDouble();
+			for (int i = 0; i < 12; i++) {
+				data[j][i] = scanner.nextDouble();
+			}
+		}
+	}
+
+	public static void calculateStDev() {
+		for (int i = 0; i < data.length; i++) {
+			double temp = 0.0;
+			for (int j = 0; j < data[i].length; j++) {
+				temp += Math.pow((data[i][j] - mean[i]), 2);
+			}
+			temp = temp / stdev.length;
+			// System.out.println(temp);
+			variance[i] = temp;
+			temp = Math.sqrt(temp);
+			stdev[i] = temp;
+		}
+	}
+
+	public static void calculateMean() {
+		for (int i = 0; i < data.length; i++) {
+			double sum = 0.0;
+			for (int j = 0; j < data[i].length; j++) {
+				sum += data[i][j];
+			}
+			sum = sum / data[i].length;
+			mean[i] = sum;
+		}
+	}
+
+	public static void createAlphaMatrix() {
+		for (int i = 0; i < alpha.length; i++) {
+			for (int j = 0; j < alpha[i].length; j++) {
+				double sum = 0.0;
+				for (int k = 0; k < time.length; k++) {
+					sum += (Math.pow(time[k], j) * Math.pow(time[k], i)) / variance[k];
+				}
+				alpha[j][i] = sum;
+			}
+		}
+	}
+
+	public static void createBetaMatrix() {
+		for (int i = 0; i < beta.length; i++) {
+			double sum = 0.0;
+			for (int j = 0; j < mean.length; j++) {
+				sum += mean[j] * Math.pow(time[j], i) / variance[j];
+			}
+			beta[i] = sum;
+		}
+	}
+
+	public static double[][] inverse(double[][] a) {
+		Matrix alpha = new Matrix(a);
+		alpha = alpha.inverse();
+		return alpha.toComponents();
+	}
+
+	public static double[] multiply(double[] b, double[][] a) throws IllegalDimension {
+		Vector beta = new Vector(b);
+		Matrix alpha = new Matrix(a);
+		Vector result = beta.product(alpha);
+		return result.toComponents();
+	}
+
+	public static XYDataset createFunctionDataset() {
+        XYDataset result = DatasetUtilities.sampleFunction2D(new Func(), 
+                1.0, 1.46, 100, "Fit");
+        return result;
+    }
+	
+	static class Func implements Function2D {
+		public double getValue(double t) {
+			return a[0] + a[1] * t + a[2] * t * t;
+		}
+	}
+	public static double fit(double[] a, double t) {
+		return a[0] + a[1] * t + a[2] * t * t;
+	}
+
+	public static XYIntervalSeries createSeries(double[] x, double[] y) {
+		double[] noError = new double[x.length];
+		for (int i = 0; i < x.length; i++) {
+			noError[i] = 0.0;
+		}
+		return createSeries(x, y, noError);
+	}
+	public static XYIntervalSeries createSeries(double[] x, double[] y, double[] error) {
+		return createSeries(x, y, error, "Untitled");
+	}
+
+	public static XYIntervalSeries createSeries(double[] y, double[] x, double[] error, String seriesName) {
+		XYIntervalSeries ret = new XYIntervalSeries(seriesName);
+		for (int i = 0; i < x.length; i++) {
+			ret.add(x[i], x[i], x[i], y[i], y[i] + error[i], y[i] - error[i]);
+		}
+		return ret;
+	}
+
+	private static void createWindow(JFreeChart chart, String frameTitle) {
+		JFrame frame = new JFrame(frameTitle);
+		JPanel chartPanel = new ChartPanel(chart);
+		frame.add(chartPanel);
+		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		frame.pack();
+		frame.setVisible(true);
+	}
+
+	private static JFreeChart createXYChart(IntervalXYDataset dataset,XYDataset fit, String xLabel, String yLabel, String title) {
+		NumberAxis xAxis = new NumberAxis(xLabel);
+		NumberAxis yAxis = new NumberAxis(yLabel);
+		XYErrorRenderer renderer = new XYErrorRenderer();
+		xAxis.setAutoRangeIncludesZero(false);
+		yAxis.setAutoRangeIncludesZero(false);
+		renderer.setDrawXError(false);
+		renderer.setBaseLinesVisible(false);
+		renderer.setBaseShapesVisible(true);
+		
+		
+		final XYPlot plot = new XYPlot(dataset, xAxis, yAxis, renderer);
+
+		plot.setBackgroundPaint(Color.lightGray);
+		plot.setDomainGridlinePaint(Color.white);
+		plot.setRangeGridlinePaint(Color.white);
+		
+		final XYItemRenderer xyLineRenderer = new XYLineAndShapeRenderer();
+		xyLineRenderer.setSeriesShape(0, new Line2D.Double(0.0, 0.0, 0.0, 0.0));
+		xyLineRenderer.setSeriesStroke(0, new BasicStroke(1.5f));
+		plot.setDataset(1, fit);
+		plot.setRenderer(1, xyLineRenderer);
+		plot.setDatasetRenderingOrder(DatasetRenderingOrder.FORWARD);
+
+		JFreeChart chart = new JFreeChart(title, plot);
+		chart.setBackgroundPaint(Color.white);
+		return chart;
+	}
+}

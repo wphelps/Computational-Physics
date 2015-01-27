@@ -1,0 +1,92 @@
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.util.Scanner;
+
+
+public class project2 {
+
+	final static int M = 7;
+	final static double ERR =10.e-4;
+	final static double CONVDR = (Math.PI/180.0);
+	static double[] xdata = new double[M];
+	static double[] ydata = new double[M];
+	static int ndata, nlegp;
+	
+	public static void main(String[] args) throws FileNotFoundException {
+		double[] theta = new double[M];
+		double[] sigma = new double[M];
+		double[] costheta=new double[M];
+		int [] iperm = new int[M];
+		int ier, c;
+		double x,y,s,s1,s2,s3;
+		Scanner scanner = new Scanner(new File("scattcross.dat"));
+		if(scanner.hasNext()){
+			ndata = scanner.nextInt();
+		}
+		for (int i = 0; scanner.hasNext(); i++) {
+			theta[i] = scanner.nextDouble();
+			sigma[i] = scanner.nextDouble();
+			costheta[i] = Math.cos(CONVDR*theta[i]);
+			System.out.printf("%4d%6.1e%15.7e%15.7e\n",i,theta[i],costheta[i], sigma[i]);
+		}
+		
+	 
+		/*
+		for (int i=0; i<ndata;i++){
+			xdata[i]=costheta[iperm[i]-1];
+			ydata[i]=sigma[iperm[i]-1];
+			System.out.printf("%4i%15.7f%15.7f\n",iperm[i]-1,xdata[i],ydata[i]);
+		}*/
+		nlegp=0;
+		
+		for (int i=-120; i<=+120; i++){
+			x=.01*i;
+			y=func(x);
+			//fprintf(scout, "%15.7e%15.7e\n",x,y);
+		}
+		
+		/*
+		for(nlegp=0; nlegp<=4; nlegp++){
+			s1=-1.; s2=+1.; s3=ERR;
+			gaus8_(func,&s1,&s2,&s3,&s,&ier);
+			s=(nlegp+.5)*s;
+			printf("%4i%15.7e%4i\n", nlegp, s, ier);
+		}*/
+	}
+	
+	
+	public static double func(double x){
+		double fval, pl;
+		int i,i1,i2;
+		for(i=1; i<ndata; i++){
+			if(xdata[i]>=x) break;
+		}
+		if(i>ndata-1)i=ndata-1;
+		i1=i-1;
+		i2=i;
+		
+		fval = ydata[i1]*(x-xdata[i2])/(xdata[i1]-xdata[i2])+ydata[i2]*(x-xdata[i1])/(xdata[i2]-xdata[i1]);
+		pl = legpol(nlegp,x);
+		fval = fval*pl;
+		return fval;
+	}
+	
+	public static double legpol(int l, double x){
+		int lmax=4;
+		double p,s;
+		if(l<0 || l>lmax){
+			System.out.printf("<legpol> 1=%i",l);
+			//exit(status);
+		}
+		p=1.;
+		if(l==0){return p;}
+		p=x;
+		if(l==1){return p;}
+		for(int i=2; i<=l; i++){
+			s=(2*i-1)*x*p-(i-1);
+			p=s/(float)i;
+		}
+		return p;
+	}
+	
+}
